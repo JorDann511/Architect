@@ -29,7 +29,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = f"""👋 Привет, {user.first_name}!
 
-Я **Architect - Startup Idea Validator** - AI-ассистент для анализа стартап-идей.
+Я **Startup Idea Validator** - AI-ассистент для анализа стартап-идей.
 
 🚀 **Что я умею:**
 • Анализ рынка и конкурентов
@@ -45,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Или используйте /analyze для пошагового ввода данных.
 Используйте /course для создания онлайн-курса.
 
-Powered by yolam_ 🤖"""
+Powered by groq AI🤖"""
 
     keyboard = [
         [InlineKeyboardButton("🚀 Начать анализ", callback_data='start_analysis')],
