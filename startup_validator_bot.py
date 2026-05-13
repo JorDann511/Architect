@@ -348,11 +348,18 @@ async def generate_course(update: Update, context: ContextTypes.DEFAULT_TYPE, to
       "lessons": [
         {{
           "title": "Урок 1",
-          "description": "Описание урока",
-          "duration": "20 мин"
+          "description": "Подробное описание урока (3-4 предложения о том, что изучается)",
+          "duration": "20 мин",
+          "topics": ["Тема 1", "Тема 2", "Тема 3"],
+          "materials": [
+            {{"type": "video", "title": "Название видео", "url": "https://youtube.com/..."}},
+            {{"type": "article", "title": "Название статьи", "url": "https://..."}},
+            {{"type": "docs", "title": "Документация", "url": "https://..."}}
+          ],
+          "practice": "Конкретное практическое задание для этого урока"
         }}
       ],
-      "practice": "Практическое задание",
+      "practice": "Практическое задание для всего модуля",
       "quiz": [
         {{
           "question": "Вопрос теста?",
@@ -370,7 +377,12 @@ async def generate_course(update: Update, context: ContextTypes.DEFAULT_TYPE, to
   "finalProject": "Описание итогового проекта"
 }}
 
-Создай 5-7 модулей, каждый с 3-5 уроками. Будь конкретным и практичным!"""
+ВАЖНО:
+- Создай 5-7 модулей, каждый с 3-5 уроками
+- Для каждого урока укажи конкретные темы (topics)
+- Добавь реальные ссылки на материалы (YouTube, статьи, документацию)
+- Практические задания должны быть конкретными и выполнимыми
+- Будь конкретным и практичным!"""
 
         # Вызов Groq API
         groq_client = get_groq_client()
@@ -452,18 +464,42 @@ def generate_course_html(topic: str, course_data: dict):
 
     # Генерируем HTML для модулей
     modules_html = ""
+    lesson_id = 0
     for idx, module in enumerate(course_data['modules'], 1):
         lessons_html = ""
-        for lesson in module['lessons']:
+        for lesson_idx, lesson in enumerate(module['lessons']):
+            lesson_id += 1
+            # Экранируем данные для JSON
+            import json
+
+            # Подготавливаем данные урока
+            lesson_topics = lesson.get('topics', ['Основные концепции', 'Практические примеры', 'Лучшие практики'])
+            lesson_materials = lesson.get('materials', [
+                {'type': 'video', 'title': 'Видео-лекция по теме', 'url': '#'},
+                {'type': 'article', 'title': 'Статья с примерами', 'url': '#'},
+                {'type': 'docs', 'title': 'Документация', 'url': '#'}
+            ])
+            lesson_practice = lesson.get('practice', 'Примените полученные знания на практике.')
+
+            lesson_data_json = json.dumps({
+                'title': lesson['title'],
+                'description': lesson['description'],
+                'duration': lesson['duration'],
+                'module': module['title'],
+                'topics': lesson_topics,
+                'materials': lesson_materials,
+                'practice': lesson_practice
+            }).replace("'", "\\'")
+
             lessons_html += f"""
-                <div class="lesson">
+                <div class="lesson" data-lesson-id="{lesson_id}" data-lesson='{lesson_data_json}'>
                     <div class="lesson-icon">📖</div>
                     <div class="lesson-content">
                         <h4>{lesson['title']}</h4>
                         <p>{lesson['description']}</p>
                         <span class="duration">⏱ {lesson['duration']}</span>
                     </div>
-                    <input type="checkbox" class="lesson-check" data-module="{idx}">
+                    <input type="checkbox" class="lesson-check" data-module="{idx}" onclick="event.stopPropagation()">
                 </div>
             """
 
@@ -768,11 +804,13 @@ def generate_course_html(topic: str, course_data: dict):
             background: #f8f9fa;
             border-radius: 12px;
             transition: all 0.3s;
+            cursor: pointer;
         }}
 
         .lesson:hover {{
             background: #e9ecef;
             transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }}
 
         .lesson.completed {{
@@ -807,6 +845,221 @@ def generate_course_html(topic: str, course_data: dict):
             width: 24px;
             height: 24px;
             cursor: pointer;
+        }}
+
+        /* Модальное окно для урока */
+        .modal {{
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            animation: fadeIn 0.3s ease;
+            align-items: center;
+            justify-content: center;
+        }}
+
+        .modal.active {{
+            display: flex;
+        }}
+
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+
+        .modal-content {{
+            background: white;
+            border-radius: 24px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            position: relative;
+            animation: slideUp 0.3s ease;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }}
+
+        @keyframes slideUp {{
+            from {{ transform: translateY(50px); opacity: 0; }}
+            to {{ transform: translateY(0); opacity: 1; }}
+        }}
+
+        .modal-header {{
+            padding: 30px 30px 20px 30px;
+            border-bottom: 2px solid #f0f0f0;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+            border-radius: 24px 24px 0 0;
+        }}
+
+        .modal-close {{
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 32px;
+            font-weight: 300;
+            color: #999;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            background: transparent;
+            border: none;
+        }}
+
+        .modal-close:hover {{
+            background: #f0f0f0;
+            color: #000;
+        }}
+
+        .modal-module-badge {{
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+
+        .modal-title {{
+            font-size: 28px;
+            font-weight: 700;
+            color: #000;
+            line-height: 1.3;
+            margin-bottom: 8px;
+        }}
+
+        .modal-meta {{
+            font-size: 14px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+
+        .modal-body {{
+            padding: 30px;
+        }}
+
+        .modal-section {{
+            margin-bottom: 30px;
+        }}
+
+        .modal-section-title {{
+            font-size: 18px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+
+        .modal-section-title::before {{
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }}
+
+        .modal-description {{
+            font-size: 16px;
+            line-height: 1.8;
+            color: #333;
+            margin-bottom: 20px;
+        }}
+
+        .modal-list {{
+            list-style: none;
+            padding: 0;
+        }}
+
+        .modal-list li {{
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }}
+
+        .modal-list li:last-child {{
+            border-bottom: none;
+        }}
+
+        .modal-list li::before {{
+            content: '✓';
+            color: #667eea;
+            font-weight: 700;
+            font-size: 18px;
+            flex-shrink: 0;
+        }}
+
+        .modal-links {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }}
+
+        .modal-link {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-decoration: none;
+            color: #000;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }}
+
+        .modal-link:hover {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateX(5px);
+        }}
+
+        .modal-link::before {{
+            content: '🔗';
+            font-size: 20px;
+        }}
+
+        .modal-practice {{
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #ff9800;
+        }}
+
+        .modal-practice h4 {{
+            margin-bottom: 10px;
+            color: #f57c00;
+            font-size: 16px;
+        }}
+
+        .modal-practice p {{
+            color: #333;
+            line-height: 1.6;
         }}
 
         .practice {{
@@ -971,6 +1224,48 @@ def generate_course_html(topic: str, course_data: dict):
         </div>
     </div>
 
+    <!-- Модальное окно для урока -->
+    <div class="modal" id="lessonModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div class="modal-module-badge" id="modalModuleName"></div>
+                <h2 class="modal-title" id="modalLessonTitle"></h2>
+                <div class="modal-meta">
+                    <span>⏱</span>
+                    <span id="modalLessonDuration"></span>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3 class="modal-section-title">📖 Описание урока</h3>
+                    <p class="modal-description" id="modalLessonDescription"></p>
+                </div>
+
+                <div class="modal-section">
+                    <h3 class="modal-section-title">🎯 Что вы изучите</h3>
+                    <ul class="modal-list" id="modalLessonTopics">
+                        <!-- Темы будут добавлены динамически -->
+                    </ul>
+                </div>
+
+                <div class="modal-section">
+                    <h3 class="modal-section-title">📚 Материалы для изучения</h3>
+                    <div class="modal-links" id="modalLessonLinks">
+                        <!-- Ссылки будут добавлены динамически -->
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-practice">
+                        <h4>💪 Практическое задание</h4>
+                        <p id="modalLessonPractice">Примените полученные знания на практике, выполнив задание из этого урока.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Подсчет общего количества уроков
         const totalLessons = document.querySelectorAll('.lesson-check').length;
@@ -1044,6 +1339,92 @@ def generate_course_html(topic: str, course_data: dict):
                 const content = this.nextElementSibling;
                 content.classList.toggle('active');
             }});
+        }});
+
+        // Открытие модального окна при клике на урок
+        document.querySelectorAll('.lesson').forEach(lesson => {{
+            lesson.addEventListener('click', function(e) {{
+                // Не открываем модалку если кликнули на чекбокс
+                if (e.target.classList.contains('lesson-check')) {{
+                    return;
+                }}
+
+                const lessonData = JSON.parse(this.dataset.lesson);
+                openLessonModal(lessonData);
+            }});
+        }});
+
+        // Функция открытия модального окна
+        function openLessonModal(lessonData) {{
+            const modal = document.getElementById('lessonModal');
+
+            // Заполняем основные данные
+            document.getElementById('modalModuleName').textContent = lessonData.module;
+            document.getElementById('modalLessonTitle').textContent = lessonData.title;
+            document.getElementById('modalLessonDuration').textContent = lessonData.duration;
+            document.getElementById('modalLessonDescription').textContent = lessonData.description;
+
+            // Заполняем темы урока
+            const topicsList = document.getElementById('modalLessonTopics');
+            topicsList.innerHTML = '';
+            lessonData.topics.forEach(topic => {{
+                const li = document.createElement('li');
+                li.textContent = topic;
+                topicsList.appendChild(li);
+            }});
+
+            // Заполняем материалы
+            const linksContainer = document.getElementById('modalLessonLinks');
+            linksContainer.innerHTML = '';
+            lessonData.materials.forEach(material => {{
+                const link = document.createElement('a');
+                link.href = material.url;
+                link.className = 'modal-link';
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+
+                // Иконка в зависимости от типа
+                const icon = material.type === 'video' ? '🎥' :
+                            material.type === 'article' ? '📄' : '📚';
+
+                link.innerHTML = `${{icon}} ${{material.title}}`;
+
+                // Если ссылка заглушка, отключаем переход
+                if (material.url === '#') {{
+                    link.onclick = (e) => {{ e.preventDefault(); }};
+                    link.style.opacity = '0.6';
+                }}
+
+                linksContainer.appendChild(link);
+            }});
+
+            // Заполняем практическое задание
+            document.getElementById('modalLessonPractice').textContent = lessonData.practice;
+
+            // Показываем модалку
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }}
+
+        // Функция закрытия модального окна
+        function closeModal() {{
+            const modal = document.getElementById('lessonModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }}
+
+        // Закрытие по клику вне модалки
+        document.getElementById('lessonModal').addEventListener('click', function(e) {{
+            if (e.target === this) {{
+                closeModal();
+            }}
+        }});
+
+        // Закрытие по ESC
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape') {{
+                closeModal();
+            }}
         }});
 
         // Инициализация
